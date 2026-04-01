@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "836353705735",
+    "project_id": "oogoo-plates-number",
+    "storage_bucket": "oogoo-plates-number.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:836353705735:android:57a48a964f4821ddc1e7a2",
+        "android_client_info": {
+          "package_name": "com.opn.nativeflow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDkvADWCej_JsdqApTTIR_3EEfhJaoMII"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
