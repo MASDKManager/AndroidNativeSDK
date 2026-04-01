@@ -32,6 +32,7 @@ public class MobiBoxApi {
                         String userAgent, String userIp, ApiCallback callback) {
         try {
             JSONObject body = buildRequestBody(action, sessionId, msisdn, pinCode, userAgent, userIp);
+            android.util.Log.e("MobiBoxApi", "Request: " + body.toString());
             RequestBody requestBody = RequestBody.create(body.toString(), JSON);
 
             Request request = new Request.Builder()
