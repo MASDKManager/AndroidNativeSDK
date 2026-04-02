@@ -15,7 +15,7 @@ import java.util.Random;
 
 public class HeaderPatternView extends View {
 
-    private static final int STYLE_COUNT = 5;
+    private static final int STYLE_COUNT = 6;
     private int brandColor = 0xFFE91E63;
     private int style = -1;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -26,7 +26,7 @@ public class HeaderPatternView extends View {
 
     public void setBrandColor(int color) { brandColor = color; invalidate(); }
     public void setStyle(int s) { style = s; invalidate(); }
-    public void randomizeStyle() { style = random.nextInt(STYLE_COUNT); invalidate(); }
+    public void randomizeStyle() { style = 5; invalidate(); }
     public int getStyle() { return style; }
 
     @Override
@@ -42,6 +42,7 @@ public class HeaderPatternView extends View {
             case 2: drawAuroraVeil(canvas, w, h); break;
             case 3: drawGlassVeil(canvas, w, h); break;
             case 4: drawFloatingDots(canvas, w, h); break;
+            case 5: drawSoftOverlappingVeils(canvas, w, h); break;
         }
     }
 
@@ -263,6 +264,40 @@ public class HeaderPatternView extends View {
         paint.setShader(new RadialGradient(w * 0.5f, h * 0.7f, w * 0.2f,
                 a(lit(brandColor, 0.7f), 60), a(lit(brandColor, 0.7f), 0), Shader.TileMode.CLAMP));
         canvas.drawCircle(w * 0.5f, h * 0.7f, w * 0.2f, paint);
+        paint.setShader(null);
+    }
+
+    private void drawSoftOverlappingVeils(Canvas canvas, int w, int h) {
+        // Very light background
+        canvas.drawColor(lit(brandColor, 0.94f));
+
+        // Veil 1 — from top-left sweeping down-right (like the reference left shape)
+        paint.setShader(new LinearGradient(0, 0, w * 0.7f, h,
+                a(lit(brandColor, 0.55f), 160), a(lit(brandColor, 0.75f), 50), Shader.TileMode.CLAMP));
+        Path v1 = new Path();
+        v1.moveTo(0, 0);
+        v1.lineTo(w * 0.3f, 0);
+        v1.cubicTo(w * 0.35f, h * 0.25f, w * 0.5f, h * 0.5f, w * 0.75f, h * 0.7f);
+        v1.cubicTo(w * 0.88f, h * 0.82f, w * 0.95f, h * 0.92f, w, h);
+        v1.lineTo(w * 0.4f, h);
+        v1.cubicTo(w * 0.3f, h * 0.75f, w * 0.15f, h * 0.45f, 0, h * 0.2f);
+        v1.close();
+        canvas.drawPath(v1, paint);
+        paint.setShader(null);
+
+        // Veil 2 — from top-right sweeping down-left (like the reference right shape)
+        paint.setShader(new LinearGradient(w, 0, w * 0.2f, h,
+                a(lit(brandColor, 0.6f), 140), a(lit(brandColor, 0.8f), 40), Shader.TileMode.CLAMP));
+        Path v2 = new Path();
+        v2.moveTo(w * 0.6f, 0);
+        v2.lineTo(w, 0);
+        v2.lineTo(w, h * 0.35f);
+        v2.cubicTo(w * 0.85f, h * 0.55f, w * 0.6f, h * 0.65f, w * 0.3f, h * 0.8f);
+        v2.cubicTo(w * 0.15f, h * 0.9f, w * 0.05f, h * 0.95f, 0, h);
+        v2.lineTo(0, h * 0.75f);
+        v2.cubicTo(w * 0.2f, h * 0.55f, w * 0.42f, h * 0.3f, w * 0.6f, 0);
+        v2.close();
+        canvas.drawPath(v2, paint);
         paint.setShader(null);
     }
 
