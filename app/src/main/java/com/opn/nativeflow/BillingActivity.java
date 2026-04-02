@@ -1,14 +1,18 @@
 package com.opn.nativeflow;
 
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Html;
 import android.util.Log;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.EditText;
@@ -68,6 +72,8 @@ public class BillingActivity extends AppCompatActivity {
     private LinearLayout layoutLinks;
     private TextView tvPrivacy, tvTerms, tvLinkDivider;
     private FrameLayout afScriptContainer;
+    private HeaderPatternView headerPattern;
+    private View logoGlowRing, logoGlowRingOuter, logoGroup;
 
     private static class TilFields {
         TextInputLayout msisdn, pin, countryCode;
@@ -110,6 +116,65 @@ public class BillingActivity extends AppCompatActivity {
         tvTerms = findViewById(R.id.tvTerms);
         tvLinkDivider = findViewById(R.id.tvLinkDivider);
         afScriptContainer = findViewById(R.id.afScriptContainer);
+        headerPattern = findViewById(R.id.headerPattern);
+        headerPattern.randomizeStyle();
+        logoGlowRing = findViewById(R.id.logoGlowRing);
+        logoGlowRingOuter = findViewById(R.id.logoGlowRingOuter);
+        logoGroup = findViewById(R.id.logoGroup);
+        startHeaderAnimations();
+    }
+
+    private void startHeaderAnimations() {
+        // Glow ring pulses
+        pulseView(logoGlowRing, 1f, 1.18f, 1f, 0.3f, 1400, 0);
+        pulseView(logoGlowRingOuter, 1f, 1.12f, 0.7f, 0.15f, 2000, 400);
+
+        // Entrance: logo group scales up + fades in
+        logoGroup.setScaleX(0.5f);
+        logoGroup.setScaleY(0.5f);
+        logoGroup.setAlpha(0f);
+        logoGroup.animate()
+                .scaleX(1f).scaleY(1f).alpha(1f)
+                .setDuration(600)
+                .setStartDelay(200)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.2f))
+                .start();
+
+        // Entrance: card slides up
+        cardInput.setTranslationY(80f);
+        cardInput.setAlpha(0f);
+        cardInput.animate()
+                .translationY(0f).alpha(1f)
+                .setDuration(500)
+                .setStartDelay(450)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .start();
+    }
+
+    private void pulseView(View v, float fromScale, float toScale, float fromAlpha, float toAlpha, long duration, long delay) {
+        ObjectAnimator sx = ObjectAnimator.ofFloat(v, "scaleX", fromScale, toScale);
+        ObjectAnimator sy = ObjectAnimator.ofFloat(v, "scaleY", fromScale, toScale);
+        ObjectAnimator a = ObjectAnimator.ofFloat(v, "alpha", fromAlpha, toAlpha);
+        AnimatorSet out = new AnimatorSet();
+        out.playTogether(sx, sy, a);
+        out.setDuration(duration);
+        out.setInterpolator(new AccelerateDecelerateInterpolator());
+
+        ObjectAnimator sx2 = ObjectAnimator.ofFloat(v, "scaleX", toScale, fromScale);
+        ObjectAnimator sy2 = ObjectAnimator.ofFloat(v, "scaleY", toScale, fromScale);
+        ObjectAnimator a2 = ObjectAnimator.ofFloat(v, "alpha", toAlpha, fromAlpha);
+        AnimatorSet in = new AnimatorSet();
+        in.playTogether(sx2, sy2, a2);
+        in.setDuration(duration);
+        in.setInterpolator(new AccelerateDecelerateInterpolator());
+
+        AnimatorSet loop = new AnimatorSet();
+        loop.playSequentially(out, in);
+        loop.setStartDelay(delay);
+        loop.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) { loop.start(); }
+        });
+        loop.start();
     }
 
     // ---- API ----
@@ -455,6 +520,23 @@ public class BillingActivity extends AppCompatActivity {
         til.pin.setHintTextColor(cl);
         tvPrivacy.setTextColor(brandColor);
         tvTerms.setTextColor(brandColor);
+
+        // Update header pattern with brand color
+        headerPattern.setBrandColor(brandColor);
+
+        // Tint glow rings
+        int r = Color.red(brandColor), g = Color.green(brandColor), b = Color.blue(brandColor);
+        GradientDrawable ring = new GradientDrawable();
+        ring.setShape(GradientDrawable.OVAL);
+        ring.setColor(Color.TRANSPARENT);
+        ring.setStroke(dpToPx(2), Color.argb(60, r, g, b));
+        logoGlowRing.setBackground(ring);
+
+        GradientDrawable outerRing = new GradientDrawable();
+        outerRing.setShape(GradientDrawable.OVAL);
+        outerRing.setColor(Color.TRANSPARENT);
+        outerRing.setStroke(dpToPx(1), Color.argb(30, r, g, b));
+        logoGlowRingOuter.setBackground(outerRing);
     }
 
     private void applyBrandColor(Bitmap bmp) {
