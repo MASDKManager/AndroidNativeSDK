@@ -23,7 +23,6 @@ import androidx.core.widget.NestedScrollView;
 import androidx.palette.graphics.Palette;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.TextInputEditText;
@@ -40,21 +39,19 @@ import java.util.Set;
 public class BillingActivity extends AppCompatActivity {
 
     private static final String TAG = "BillingActivity";
-    private static final String COUNTRY_DIAL = "961";
 
-    // Keys that go BEFORE input (top of page)
     private static final Set<String> BEFORE_KEYS = new HashSet<>(Arrays.asList(
             "headerInfo", "prelanderInfo", "prelanderTxt", "OTPTopHeaderInfo"
     ));
-    // Keys that go BETWEEN input and button
     private static final Set<String> MIDDLE_KEYS = new HashSet<>(Arrays.asList(
             "middleInfo"
     ));
-    // Everything else (footerInfo etc.) goes AFTER button
 
     private MobiBoxApi api;
     private String sessionId = "";
     private String currentMsisdn = "";
+    private String resolvedIp = "";
+    private String countryDialCode = "";
     private int brandColor = 0;
 
     private NestedScrollView scrollView;
@@ -64,12 +61,17 @@ public class BillingActivity extends AppCompatActivity {
     private LinearLayout layoutMsisdnRow;
     private LinearLayout layoutDisclaimersBefore, layoutDisclaimersMiddle, layoutDisclaimersAfter;
     private LinearLayout layoutPinBoxes;
-    private TextInputLayout tilMsisdn, tilPin, tilCountryCode;
-    private TextInputEditText etMsisdn, etPin;
+    private TilFields til;
+    private TextInputEditText etMsisdn, etPin, etCountryCode;
     private TextView tvError;
     private MaterialButton btnAction;
     private LinearLayout layoutLinks;
     private TextView tvPrivacy, tvTerms, tvLinkDivider;
+    private FrameLayout afScriptContainer;
+
+    private static class TilFields {
+        TextInputLayout msisdn, pin, countryCode;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,7 +79,11 @@ public class BillingActivity extends AppCompatActivity {
         setContentView(R.layout.activity_billing);
         api = new MobiBoxApi();
         initViews();
-        callInitiate();
+        // Resolve public IP first, then initiate
+        api.resolvePublicIp(ip -> {
+            resolvedIp = ip;
+            runOnUiThread(this::callInitiate);
+        });
     }
 
     private void initViews() {
@@ -90,43 +96,58 @@ public class BillingActivity extends AppCompatActivity {
         layoutDisclaimersMiddle = findViewById(R.id.layoutDisclaimersMiddle);
         layoutDisclaimersAfter = findViewById(R.id.layoutDisclaimersAfter);
         layoutPinBoxes = findViewById(R.id.layoutPinBoxes);
-        tilMsisdn = findViewById(R.id.tilMsisdn);
-        tilPin = findViewById(R.id.tilPin);
-        tilCountryCode = findViewById(R.id.tilCountryCode);
+        til = new TilFields();
+        til.msisdn = findViewById(R.id.tilMsisdn);
+        til.pin = findViewById(R.id.tilPin);
+        til.countryCode = findViewById(R.id.tilCountryCode);
         etMsisdn = findViewById(R.id.etMsisdn);
         etPin = findViewById(R.id.etPin);
+        etCountryCode = findViewById(R.id.etCountryCode);
         tvError = findViewById(R.id.tvError);
         btnAction = findViewById(R.id.btnAction);
         layoutLinks = findViewById(R.id.layoutLinks);
         tvPrivacy = findViewById(R.id.tvPrivacy);
         tvTerms = findViewById(R.id.tvTerms);
         tvLinkDivider = findViewById(R.id.tvLinkDivider);
+        afScriptContainer = findViewById(R.id.afScriptContainer);
     }
 
     // ---- API ----
 
+    private String ua() { return WebSettings.getDefaultUserAgent(this); }
+
+    private String firstBtnId() {
+        String id = api.getFirstPageButtonID();
+        return !id.isEmpty() ? id : "btnAction";
+    }
+
+    private String secondBtnId() {
+        String id = api.getSecondPageButtonID();
+        return !id.isEmpty() ? id : "btnAction";
+    }
+
     private void callInitiate() {
         showLoading(true);
-        String ua = WebSettings.getDefaultUserAgent(this);
-        api.callApi(1, "", "", "", ua, "", new MobiBoxApi.ApiCallback() {
-            @Override
-            public void onSuccess(JSONObject r) {
-                Log.e(TAG, "Response: " + r.toString());
-                runOnUiThread(() -> handleResponse(r));
-            }
-            @Override
-            public void onError(String e) {
-                runOnUiThread(() -> { showLoading(false); showError("Connection error."); });
-            }
-        });
+        api.callApi(1, "", "", "", ua(), resolvedIp, "btnAction", "btnAction",
+                new MobiBoxApi.ApiCallback() {
+                    @Override
+                    public void onSuccess(JSONObject r) {
+                        Log.e(TAG, "Response: " + r.toString());
+                        runOnUiThread(() -> handleResponse(r));
+                    }
+                    @Override
+                    public void onError(String e) {
+                        runOnUiThread(() -> { showLoading(false); showError("Connection error."); });
+                    }
+                });
     }
 
     private void callAction(int action, String msisdn, String pin) {
         showLoading(true);
         hideError();
         if (msisdn != null && !msisdn.isEmpty()) currentMsisdn = msisdn;
-        String ua = WebSettings.getDefaultUserAgent(this);
-        api.callApi(action, sessionId, msisdn != null ? msisdn : "", pin != null ? pin : "", ua, "",
+        api.callApi(action, sessionId, msisdn != null ? msisdn : "", pin != null ? pin : "",
+                ua(), resolvedIp, firstBtnId(), secondBtnId(),
                 new MobiBoxApi.ApiCallback() {
                     @Override
                     public void onSuccess(JSONObject r) {
@@ -142,7 +163,6 @@ public class BillingActivity extends AppCompatActivity {
 
     // ---- Response ----
 
-    // Store additionalQueryStringParams from response
     private String additionalQueryStringParams = "";
 
     private void handleResponse(JSONObject response) {
@@ -156,11 +176,16 @@ public class BillingActivity extends AppCompatActivity {
             String sid = response.optString("SessionID", "");
             if (!sid.isEmpty()) sessionId = sid;
 
-            // Store additionalQueryStringParams if present
             String aqsp = response.optString("additionalQueryStringParams", "");
             if (!aqsp.isEmpty()) additionalQueryStringParams = aqsp;
 
-            // Log Payout info
+            // Update country dial code dynamically
+            String dial = api.getCountryDialCode();
+            if (!dial.isEmpty() && !dial.equals(countryDialCode)) {
+                countryDialCode = dial;
+                etCountryCode.setText("+" + countryDialCode);
+            }
+
             JSONObject payout = response.optJSONObject("Payout");
             if (payout != null) {
                 Log.e(TAG, "Payout Rate: " + payout.optDouble("Rate", 0.0)
@@ -168,16 +193,24 @@ public class BillingActivity extends AppCompatActivity {
             }
 
             if (error == 1) {
-                // Error=1: show MessageToShow or Description, don't proceed
                 String errMsg = !msg.isEmpty() ? msg : (!description.isEmpty() ? description : "An error occurred");
                 showError(errMsg);
                 return;
             }
 
             JSONObject na = response.optJSONObject("NextAction");
-            if (na == null) { showError(!msg.isEmpty() ? msg : "No further action."); return; }
+            if (na == null) {
+                Log.e(TAG, "Full response (no NextAction): " + response.toString());
+                // Try case-insensitive search for NextAction
+                Iterator<String> respKeys = response.keys();
+                while (respKeys.hasNext()) {
+                    String k = respKeys.next();
+                    Log.e(TAG, "Response key: " + k + " = " + response.opt(k));
+                }
+                showError(!msg.isEmpty() ? msg : "No further action.");
+                return;
+            }
 
-            // Error=2: user already subscribed, continue to NextAction but show message
             if (error == 2 && !msg.isEmpty()) showError(msg);
             processNextAction(na.optInt("Action", 0), na);
         } catch (Exception e) {
@@ -190,16 +223,18 @@ public class BillingActivity extends AppCompatActivity {
         hideAllSections();
         showAllDisclaimers(na);
         showLinks(na);
+        loadAFScript(na);
 
         switch (actionId) {
-            case 2: // SendPin
+            case 2: // SendPin — show MSISDN entry
                 cardInput.setVisibility(View.VISIBLE);
                 layoutMsisdnRow.setVisibility(View.VISIBLE);
                 btnAction.setText("Subscribe");
                 btnAction.setOnClickListener(v -> {
                     String m = etMsisdn.getText() != null ? etMsisdn.getText().toString().trim() : "";
                     if (m.isEmpty()) { showError("Please enter your phone number"); return; }
-                    callAction(2, COUNTRY_DIAL + m, "");
+                    String prefix = countryDialCode.isEmpty() ? "" : countryDialCode;
+                    callAction(2, prefix + m, "");
                 });
                 break;
             case 3: // VerifyPin
@@ -209,24 +244,23 @@ public class BillingActivity extends AppCompatActivity {
                 buildPinBoxes(pinLen);
                 if (brandColor != 0) reapplyBrandColor();
                 btnAction.setText("Verify");
-                final int finalPinLen = pinLen;
+                final int fLen = pinLen;
                 btnAction.setOnClickListener(v -> {
-                    String p = collectPin(finalPinLen);
-                    if (p.length() < finalPinLen) { showError("Please enter the complete PIN"); return; }
+                    String p = collectPin(fLen);
+                    if (p.length() < fLen) { showError("Please enter the complete PIN"); return; }
                     callAction(3, currentMsisdn, p);
                 });
                 break;
-            case 4: // LoadURL — append additionalQueryStringParams if present
+            case 4: // LoadURL
                 String url = na.optString("URL", "");
                 if (!url.isEmpty()) {
-                    if (!additionalQueryStringParams.isEmpty()) {
+                    if (!additionalQueryStringParams.isEmpty())
                         url += (url.contains("?") ? "&" : "?") + additionalQueryStringParams;
-                    }
                     openUrl(url);
                     finish();
                 }
                 break;
-            case 5: // SendSMS — doc says Message + Destination
+            case 5: // SendSMS
                 handleSendSms(na);
                 break;
             case 6: // ClicksFlow
@@ -244,17 +278,22 @@ public class BillingActivity extends AppCompatActivity {
                 btnAction.setOnClickListener(v -> callAction(8, "", ""));
                 break;
         }
-
-        // AFScript — always present per doc, load if not empty
-        String af = na.optString("AFScript", "");
-        if (!af.isEmpty()) {
-            WebView afWv = new WebView(this);
-            afWv.getSettings().setJavaScriptEnabled(true);
-            afWv.loadUrl(af);
-        }
     }
 
-    // ---- Disclaimers: dynamic, iterate ALL keys ----
+    // ---- AFScript: attach to layout so it actually runs ----
+
+    private void loadAFScript(JSONObject na) {
+        afScriptContainer.removeAllViews();
+        String af = na.optString("AFScript", "");
+        if (af.isEmpty()) return;
+        WebView wv = new WebView(this);
+        wv.getSettings().setJavaScriptEnabled(true);
+        wv.setLayoutParams(new FrameLayout.LayoutParams(0, 0));
+        afScriptContainer.addView(wv);
+        wv.loadUrl(af);
+    }
+
+    // ---- Disclaimers ----
 
     private void showAllDisclaimers(JSONObject na) {
         layoutDisclaimersBefore.removeAllViews();
@@ -262,15 +301,10 @@ public class BillingActivity extends AppCompatActivity {
         layoutDisclaimersAfter.removeAllViews();
 
         JSONObject disclaimers = na.optJSONObject("Disclaimers");
-        if (disclaimers == null) {
-            Log.e(TAG, "No Disclaimers object in NextAction");
-            return;
-        }
+        if (disclaimers == null) return;
 
-        Log.e(TAG, "Disclaimers keys: " + disclaimers.toString());
-
-        Iterator<String> keys = disclaimers.keys();
         boolean hasBefore = false, hasMiddle = false, hasAfter = false;
+        Iterator<String> keys = disclaimers.keys();
 
         while (keys.hasNext()) {
             String key = keys.next();
@@ -278,13 +312,8 @@ public class BillingActivity extends AppCompatActivity {
             if (val.isEmpty()) continue;
 
             String decoded;
-            try {
-                decoded = URLDecoder.decode(val, "UTF-8");
-            } catch (Exception e) {
-                decoded = val;
-            }
-
-            Log.e(TAG, "Disclaimer [" + key + "]: " + decoded);
+            try { decoded = URLDecoder.decode(val, "UTF-8"); }
+            catch (Exception e) { decoded = val; }
 
             TextView tv = new TextView(this);
             tv.setText(Html.fromHtml(decoded, Html.FROM_HTML_MODE_COMPACT));
@@ -299,7 +328,6 @@ public class BillingActivity extends AppCompatActivity {
                 layoutDisclaimersMiddle.addView(tv);
                 hasMiddle = true;
             } else {
-                // footerInfo and any unknown keys go after button
                 layoutDisclaimersAfter.addView(tv);
                 hasAfter = true;
             }
@@ -330,7 +358,6 @@ public class BillingActivity extends AppCompatActivity {
             box.setPadding(0, 0, 0, 0);
             box.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
 
-            // Rounded rect border background
             android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
             bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
             bg.setCornerRadius(dpToPx(8));
@@ -342,8 +369,6 @@ public class BillingActivity extends AppCompatActivity {
             layoutPinBoxes.addView(box);
 
             final int idx = i;
-
-            // Highlight focused box with brand color
             box.setOnFocusChangeListener((v, hasFocus) -> {
                 android.graphics.drawable.GradientDrawable d = (android.graphics.drawable.GradientDrawable) box.getBackground();
                 if (hasFocus) {
@@ -360,9 +385,7 @@ public class BillingActivity extends AppCompatActivity {
                 @Override public void onTextChanged(CharSequence s, int st, int b, int c) {}
                 @Override
                 public void afterTextChanged(android.text.Editable s) {
-                    if (s.length() == 1 && idx < count - 1) {
-                        boxes[idx + 1].requestFocus();
-                    }
+                    if (s.length() == 1 && idx < count - 1) boxes[idx + 1].requestFocus();
                 }
             });
 
@@ -377,16 +400,13 @@ public class BillingActivity extends AppCompatActivity {
                 return false;
             });
         }
-
         if (count > 0) boxes[0].requestFocus();
     }
 
     private String collectPin(int count) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < layoutPinBoxes.getChildCount() && i < count; i++) {
-            EditText box = (EditText) layoutPinBoxes.getChildAt(i);
-            sb.append(box.getText().toString());
-        }
+        for (int i = 0; i < layoutPinBoxes.getChildCount() && i < count; i++)
+            sb.append(((EditText) layoutPinBoxes.getChildAt(i)).getText().toString());
         return sb.toString();
     }
 
@@ -403,16 +423,13 @@ public class BillingActivity extends AppCompatActivity {
             if (na != null) url = findImageUrl(na);
         }
         if (url == null || url.isEmpty()) {
-            // No new image — reapply existing brand color if we have one
             if (brandColor != 0) reapplyBrandColor();
             return;
         }
 
         ivLogo.setVisibility(View.VISIBLE);
-        // Load without CircleCrop — the white circle bg in layout handles the shape
         Glide.with(this).load(url).circleCrop().into(ivLogo);
 
-        // Only extract color if we don't have one yet
         if (brandColor == 0) {
             Glide.with(this).asBitmap().load(url)
                     .into(new com.bumptech.glide.request.target.SimpleTarget<Bitmap>() {
@@ -431,11 +448,11 @@ public class BillingActivity extends AppCompatActivity {
         ColorStateList cl = ColorStateList.valueOf(brandColor);
         btnAction.setBackgroundTintList(cl);
         btnAction.setTextColor(Color.WHITE);
-        tilMsisdn.setBoxStrokeColor(brandColor);
-        tilPin.setBoxStrokeColor(brandColor);
-        tilCountryCode.setBoxStrokeColor(brandColor);
-        tilMsisdn.setHintTextColor(cl);
-        tilPin.setHintTextColor(cl);
+        til.msisdn.setBoxStrokeColor(brandColor);
+        til.pin.setBoxStrokeColor(brandColor);
+        til.countryCode.setBoxStrokeColor(brandColor);
+        til.msisdn.setHintTextColor(cl);
+        til.pin.setHintTextColor(cl);
         tvPrivacy.setTextColor(brandColor);
         tvTerms.setTextColor(brandColor);
     }
@@ -443,7 +460,6 @@ public class BillingActivity extends AppCompatActivity {
     private void applyBrandColor(Bitmap bmp) {
         Palette.from(bmp).generate(p -> {
             if (p == null) return;
-            // Prefer vibrant colors over dark/muted for buttons
             Palette.Swatch s = p.getVibrantSwatch();
             if (s == null) s = p.getLightVibrantSwatch();
             if (s == null) s = p.getMutedSwatch();
@@ -451,10 +467,8 @@ public class BillingActivity extends AppCompatActivity {
             if (s == null) s = p.getDominantSwatch();
             if (s == null) return;
 
-            // Skip very dark colors (luminance < 0.1) — try next swatch
             double lum = (0.299 * Color.red(s.getRgb()) + 0.587 * Color.green(s.getRgb()) + 0.114 * Color.blue(s.getRgb())) / 255;
             if (lum < 0.15) {
-                // Try to find a lighter swatch
                 Palette.Swatch lighter = p.getLightVibrantSwatch();
                 if (lighter == null) lighter = p.getVibrantSwatch();
                 if (lighter == null) lighter = p.getMutedSwatch();
@@ -462,17 +476,7 @@ public class BillingActivity extends AppCompatActivity {
             }
 
             brandColor = s.getRgb();
-            ColorStateList cl = ColorStateList.valueOf(brandColor);
-
-            btnAction.setBackgroundTintList(cl);
-            btnAction.setTextColor(Color.WHITE);
-            tilMsisdn.setBoxStrokeColor(brandColor);
-            tilPin.setBoxStrokeColor(brandColor);
-            tilCountryCode.setBoxStrokeColor(brandColor);
-            tilMsisdn.setHintTextColor(cl);
-            tilPin.setHintTextColor(cl);
-            tvPrivacy.setTextColor(brandColor);
-            tvTerms.setTextColor(brandColor);
+            reapplyBrandColor();
         });
     }
 
@@ -513,7 +517,6 @@ public class BillingActivity extends AppCompatActivity {
 
     private void handleSendSms(JSONObject na) {
         try {
-            // Doc: Message = SMS text, Destination = shortcode receiver
             String destination = na.optString("Destination", na.optString("SMSTo", ""));
             String message = na.optString("Message", na.optString("SMSBody", ""));
             Intent i = new Intent(Intent.ACTION_VIEW);
@@ -526,7 +529,7 @@ public class BillingActivity extends AppCompatActivity {
     private void hideAllSections() {
         cardInput.setVisibility(View.GONE);
         layoutMsisdnRow.setVisibility(View.GONE);
-        tilPin.setVisibility(View.GONE);
+        til.pin.setVisibility(View.GONE);
         layoutPinBoxes.setVisibility(View.GONE);
         layoutDisclaimersBefore.setVisibility(View.GONE);
         layoutDisclaimersMiddle.setVisibility(View.GONE);

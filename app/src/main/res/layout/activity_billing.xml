@@ -227,6 +227,13 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
+    <!-- AFScript container (hidden, 0x0) -->
+    <FrameLayout
+        android:id="@+id/afScriptContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="visible" />
+
     <!-- Loading -->
     <FrameLayout
         android:id="@+id/layoutLoading"
