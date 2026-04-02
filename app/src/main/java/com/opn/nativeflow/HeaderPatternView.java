@@ -26,7 +26,7 @@ public class HeaderPatternView extends View {
 
     public void setBrandColor(int color) { brandColor = color; invalidate(); }
     public void setStyle(int s) { style = s; invalidate(); }
-    public void randomizeStyle() { style = 5; invalidate(); }
+    public void randomizeStyle() { style = random.nextInt(STYLE_COUNT); invalidate(); }
     public int getStyle() { return style; }
 
     @Override
