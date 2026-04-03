@@ -10,7 +10,6 @@ import android.graphics.RadialGradient;
 import android.graphics.Shader;
 import android.util.AttributeSet;
 import android.view.View;
-
 import java.util.Random;
 
 public class HeaderPatternView extends View {

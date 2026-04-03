@@ -11,35 +11,85 @@
         android:layout_height="match_parent"
         android:background="#FFFFFF"
         android:fillViewport="true"
-        android:visibility="invisible">
+        android:visibility="invisible"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingBottom="32dp">
+            android:paddingBottom="32dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
 
-            <!-- Logo with white background circle -->
+            <!-- ===== MODERN HEADER ===== -->
             <FrameLayout
-                android:layout_width="100dp"
-                android:layout_height="100dp"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="40dp"
-                android:layout_marginBottom="20dp">
+                android:id="@+id/headerContainer"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:clipChildren="false"
+                android:clipToPadding="false">
 
-                <View
-                    android:layout_width="100dp"
-                    android:layout_height="100dp"
-                    android:background="@drawable/bg_logo_circle" />
+                <!-- Dynamic pattern background -->
+                <com.opn.nativeflow.HeaderPatternView
+                    android:id="@+id/headerPattern"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
 
-                <ImageView
-                    android:id="@+id/ivLogo"
-                    android:layout_width="100dp"
-                    android:layout_height="100dp"
-                    android:visibility="gone"
-                    android:contentDescription="Service logo" />
+                <!-- Logo group: glow ring + white bg + image -->
+                <FrameLayout
+                    android:id="@+id/logoGroup"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal|bottom"
+                    android:layout_marginBottom="-44dp"
+                    android:clipChildren="false"
+                    android:clipToPadding="false">
+
+                    <!-- Outer glow ring -->
+                    <View
+                        android:id="@+id/logoGlowRingOuter"
+                        android:layout_width="140dp"
+                        android:layout_height="140dp"
+                        android:layout_gravity="center"
+                        android:background="@drawable/bg_logo_glow_ring_outer" />
+
+                    <!-- Inner glow ring -->
+                    <View
+                        android:id="@+id/logoGlowRing"
+                        android:layout_width="124dp"
+                        android:layout_height="124dp"
+                        android:layout_gravity="center"
+                        android:background="@drawable/bg_logo_glow_ring" />
+
+                    <!-- White circle with shadow -->
+                    <View
+                        android:id="@+id/logoWhiteBg"
+                        android:layout_width="104dp"
+                        android:layout_height="104dp"
+                        android:layout_gravity="center"
+                        android:background="@drawable/bg_logo_white_circle"
+                        android:elevation="12dp" />
+
+                    <!-- Logo image -->
+                    <ImageView
+                        android:id="@+id/ivLogo"
+                        android:layout_width="88dp"
+                        android:layout_height="88dp"
+                        android:layout_gravity="center"
+                        android:elevation="13dp"
+                        android:visibility="gone"
+                        android:contentDescription="Service logo" />
+
+                </FrameLayout>
 
             </FrameLayout>
+
+            <!-- Spacer for the overlapping logo -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="52dp" />
 
             <!-- Main card -->
             <com.google.android.material.card.MaterialCardView
@@ -226,6 +276,13 @@
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
+
+    <!-- AFScript container (hidden, 0x0) -->
+    <FrameLayout
+        android:id="@+id/afScriptContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="visible" />
 
     <!-- Loading -->
     <FrameLayout

@@ -3846,10 +3846,17 @@ drawable avd_show_password
 drawable bg_button_gradient
 drawable bg_button_primary
 drawable bg_card
+drawable bg_header_circle_deco
+drawable bg_header_fade_bottom
+drawable bg_header_gradient
 drawable bg_image_circle
 drawable bg_input
 drawable bg_input_modern
 drawable bg_logo_circle
+drawable bg_logo_glow_ring
+drawable bg_logo_glow_ring_outer
+drawable bg_logo_white_circle
+drawable bg_particle_dot
 drawable btn_checkbox_checked_mtrl
 drawable btn_checkbox_checked_to_unchecked_mtrl_animation
 drawable btn_checkbox_unchecked_mtrl
@@ -3898,6 +3905,8 @@ drawable ic_clock_black_24dp
 drawable ic_expand_less_22px
 drawable ic_expand_more_22px
 drawable ic_keyboard_black_24dp
+drawable ic_launcher_background
+drawable ic_launcher_foreground
 drawable ic_m3_chip_check
 drawable ic_m3_chip_checked_circle
 drawable ic_m3_chip_close
@@ -4069,6 +4078,7 @@ id add
 id adjust_height
 id adjust_width
 id advance
+id afScriptContainer
 id al_exo_ad_overlay
 id al_exo_artwork
 id al_exo_audio_track
@@ -4173,7 +4183,6 @@ id browser_actions_menu_item_text
 id browser_actions_menu_items
 id browser_actions_menu_view
 id btnAction
-id btn_start_places
 id buttonPanel
 id cache_measures
 id callMeasure
@@ -4215,7 +4224,6 @@ id custom
 id customPanel
 id cut
 id dark
-id dashMapLyt
 id date_picker_actions
 id decelerate
 id decelerateAndComplete
@@ -4304,6 +4312,8 @@ id graph_wrap
 id group_divider
 id grouping
 id groups
+id headerContainer
+id headerPattern
 id header_title
 id hidden
 id hide_ime_id
@@ -4354,6 +4364,10 @@ id linear
 id listMode
 id listView
 id list_item
+id logoGlowRing
+id logoGlowRingOuter
+id logoGroup
+id logoWhiteBg
 id m3_side_sheet
 id marquee
 id masked
@@ -4781,7 +4795,6 @@ layout abc_search_view
 layout abc_select_dialog_material
 layout abc_tooltip
 layout activity_billing
-layout activity_dashboard
 layout activity_start_screen
 layout admob_empty_layout
 layout applovin_debugger_list_item_detail

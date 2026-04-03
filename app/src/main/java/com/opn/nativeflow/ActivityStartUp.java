@@ -19,7 +19,7 @@ public class ActivityStartUp extends AppCompatActivity {
     }
 
     private void openNextActivity() {
-        Intent intent = new Intent(ActivityStartUp.this, DashboardActivity.class);
+        Intent intent = new Intent(ActivityStartUp.this, BillingActivity.class);
         startActivity(intent);
         finish();
     }

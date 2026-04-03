@@ -21,19 +21,15 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.widget.NestedScrollView;
 import androidx.palette.graphics.Palette;
-
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-
 import org.json.JSONObject;
-
 import java.net.URLDecoder;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -480,7 +476,6 @@ public class BillingActivity extends AppCompatActivity {
     }
 
     // ---- Logo & Color ----
-
     private void loadLogo(JSONObject response) {
         String url = findImageUrl(response);
         if (url == null) {
