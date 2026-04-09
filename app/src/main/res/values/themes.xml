@@ -13,5 +13,13 @@
     <style name="webTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:statusBarColor">@color/black</item>
         <item name="windowActionModeOverlay">true</item>
+        <item name="android:windowAnimationStyle">@style/SmoothWindowAnim</item>
+    </style>
+
+    <style name="SmoothWindowAnim" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/fade_scale_in</item>
+        <item name="android:activityOpenExitAnimation">@anim/fade_scale_out</item>
+        <item name="android:activityCloseEnterAnimation">@anim/fade_scale_in</item>
+        <item name="android:activityCloseExitAnimation">@anim/fade_scale_out</item>
     </style>
 </resources>

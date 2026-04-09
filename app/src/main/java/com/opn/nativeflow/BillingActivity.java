@@ -1,5 +1,7 @@
 package com.opn.nativeflow;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.content.Intent;
@@ -13,6 +15,8 @@ import android.text.Html;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.EditText;
@@ -23,6 +27,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.widget.NestedScrollView;
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator;
 import androidx.palette.graphics.Palette;
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
@@ -125,25 +130,35 @@ public class BillingActivity extends AppCompatActivity {
         pulseView(logoGlowRing, 1f, 1.18f, 1f, 0.3f, 1400, 0);
         pulseView(logoGlowRingOuter, 1f, 1.12f, 0.7f, 0.15f, 2000, 400);
 
-        // Entrance: logo group scales up + fades in
-        logoGroup.setScaleX(0.5f);
-        logoGroup.setScaleY(0.5f);
+        // Entrance: logo group scales up + fades in with spring feel
+        logoGroup.setScaleX(0.3f);
+        logoGroup.setScaleY(0.3f);
         logoGroup.setAlpha(0f);
         logoGroup.animate()
                 .scaleX(1f).scaleY(1f).alpha(1f)
-                .setDuration(600)
-                .setStartDelay(200)
-                .setInterpolator(new android.view.animation.OvershootInterpolator(1.2f))
+                .setDuration(800)
+                .setStartDelay(150)
+                .setInterpolator(new OvershootInterpolator(1.4f))
                 .start();
 
-        // Entrance: card slides up
-        cardInput.setTranslationY(80f);
+        // Entrance: card slides up with bounce
+        cardInput.setTranslationY(120f);
         cardInput.setAlpha(0f);
         cardInput.animate()
                 .translationY(0f).alpha(1f)
-                .setDuration(500)
-                .setStartDelay(450)
-                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .setDuration(600)
+                .setStartDelay(500)
+                .setInterpolator(new DecelerateInterpolator(2f))
+                .start();
+
+        // Button subtle scale entrance
+        btnAction.setScaleX(0.8f);
+        btnAction.setScaleY(0.8f);
+        btnAction.animate()
+                .scaleX(1f).scaleY(1f)
+                .setDuration(400)
+                .setStartDelay(700)
+                .setInterpolator(new OvershootInterpolator(2f))
                 .start();
     }
 
@@ -288,10 +303,17 @@ public class BillingActivity extends AppCompatActivity {
 
         switch (actionId) {
             case 2: // SendPin — show MSISDN entry
-                cardInput.setVisibility(View.VISIBLE);
+                animateViewIn(cardInput);
                 layoutMsisdnRow.setVisibility(View.VISIBLE);
+                // Stagger MSISDN row
+                layoutMsisdnRow.setAlpha(0f);
+                layoutMsisdnRow.setTranslationX(-30f);
+                layoutMsisdnRow.animate().alpha(1f).translationX(0f).setDuration(400)
+                        .setStartDelay(150).setInterpolator(new FastOutSlowInInterpolator()).start();
                 btnAction.setText("Subscribe");
+                animateButtonEntrance();
                 btnAction.setOnClickListener(v -> {
+                    animateButtonPress(v);
                     String m = etMsisdn.getText() != null ? etMsisdn.getText().toString().trim() : "";
                     if (m.isEmpty()) { showError("Please enter your phone number"); return; }
                     String prefix = countryDialCode.isEmpty() ? "" : countryDialCode;
@@ -299,14 +321,17 @@ public class BillingActivity extends AppCompatActivity {
                 });
                 break;
             case 3: // VerifyPin
-                cardInput.setVisibility(View.VISIBLE);
+                animateViewIn(cardInput);
                 int pinLen = na.optInt("PincodeLength", 4);
                 if (pinLen <= 0) pinLen = 4;
                 buildPinBoxes(pinLen);
+                animatePinBoxesEntrance();
                 if (brandColor != 0) reapplyBrandColor();
                 btnAction.setText("Verify");
+                animateButtonEntrance();
                 final int fLen = pinLen;
                 btnAction.setOnClickListener(v -> {
+                    animateButtonPress(v);
                     String p = collectPin(fLen);
                     if (p.length() < fLen) { showError("Please enter the complete PIN"); return; }
                     callAction(3, currentMsisdn, p);
@@ -319,25 +344,67 @@ public class BillingActivity extends AppCompatActivity {
                         url += (url.contains("?") ? "&" : "?") + additionalQueryStringParams;
                     openUrl(url);
                     finish();
+                    overridePendingTransition(R.anim.fade_scale_in, R.anim.fade_scale_out);
                 }
                 break;
             case 5: // SendSMS
                 handleSendSms(na);
                 break;
             case 6: // ClicksFlow
-                cardInput.setVisibility(View.VISIBLE);
+                animateViewIn(cardInput);
                 btnAction.setText("Continue");
-                btnAction.setOnClickListener(v -> callAction(6, "", ""));
+                animateButtonEntrance();
+                btnAction.setOnClickListener(v -> {
+                    animateButtonPress(v);
+                    callAction(6, "", "");
+                });
                 break;
             case 7: // Close
                 Toast.makeText(this, "Process completed", Toast.LENGTH_SHORT).show();
                 finish();
+                overridePendingTransition(R.anim.fade_scale_in, R.anim.fade_scale_out);
                 break;
             case 8: // ClickToSMS
-                cardInput.setVisibility(View.VISIBLE);
+                animateViewIn(cardInput);
                 btnAction.setText("Subscribe");
-                btnAction.setOnClickListener(v -> callAction(8, "", ""));
+                animateButtonEntrance();
+                btnAction.setOnClickListener(v -> {
+                    animateButtonPress(v);
+                    callAction(8, "", "");
+                });
                 break;
+        }
+    }
+
+    /** Button press micro-interaction: quick scale down then back */
+    private void animateButtonPress(View v) {
+        v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(80)
+                .setInterpolator(new DecelerateInterpolator())
+                .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(150)
+                        .setInterpolator(new OvershootInterpolator(2f)).start())
+                .start();
+    }
+
+    /** Button entrance with scale overshoot */
+    private void animateButtonEntrance() {
+        btnAction.setScaleX(0.7f);
+        btnAction.setScaleY(0.7f);
+        btnAction.setAlpha(0f);
+        btnAction.animate().scaleX(1f).scaleY(1f).alpha(1f)
+                .setDuration(400).setStartDelay(250)
+                .setInterpolator(new OvershootInterpolator(2f)).start();
+    }
+
+    /** Stagger-animate PIN boxes one by one */
+    private void animatePinBoxesEntrance() {
+        for (int i = 0; i < layoutPinBoxes.getChildCount(); i++) {
+            View box = layoutPinBoxes.getChildAt(i);
+            box.setScaleX(0f);
+            box.setScaleY(0f);
+            box.setAlpha(0f);
+            box.animate().scaleX(1f).scaleY(1f).alpha(1f)
+                    .setDuration(300).setStartDelay(150 + i * 60L)
+                    .setInterpolator(new OvershootInterpolator(2.5f)).start();
         }
     }
 
@@ -366,6 +433,7 @@ public class BillingActivity extends AppCompatActivity {
 
         boolean hasBefore = false, hasMiddle = false, hasAfter = false;
         Iterator<String> keys = disclaimers.keys();
+        int idx = 0;
 
         while (keys.hasNext()) {
             String key = keys.next();
@@ -381,6 +449,14 @@ public class BillingActivity extends AppCompatActivity {
             tv.setTextSize(13);
             tv.setLineSpacing(0, 1.4f);
             tv.setPadding(0, 8, 0, 8);
+
+            // Stagger fade-in for each disclaimer
+            tv.setAlpha(0f);
+            tv.setTranslationY(15f);
+            int delay = 200 + idx * 80;
+            tv.animate().alpha(1f).translationY(0f).setDuration(350)
+                    .setStartDelay(delay).setInterpolator(new DecelerateInterpolator()).start();
+            idx++;
 
             if (BEFORE_KEYS.contains(key)) {
                 layoutDisclaimersBefore.addView(tv);
@@ -435,9 +511,12 @@ public class BillingActivity extends AppCompatActivity {
                 if (hasFocus) {
                     d.setStroke(dpToPx(2), brandColor != 0 ? brandColor : 0xFF333333);
                     d.setColor(0xFFFFFFFF);
+                    box.animate().scaleX(1.1f).scaleY(1.1f).setDuration(150)
+                            .setInterpolator(new OvershootInterpolator(3f)).start();
                 } else {
                     d.setStroke(dpToPx(1), 0xFFDDDDDD);
                     d.setColor(0xFFF8F8F8);
+                    box.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
                 }
             });
 
@@ -488,7 +567,17 @@ public class BillingActivity extends AppCompatActivity {
         }
 
         ivLogo.setVisibility(View.VISIBLE);
-        Glide.with(this).load(url).circleCrop().into(ivLogo);
+        ivLogo.setAlpha(0f);
+        ivLogo.setScaleX(0.5f);
+        ivLogo.setScaleY(0.5f);
+        Glide.with(this).load(url).circleCrop()
+                .into(new com.bumptech.glide.request.target.ImageViewTarget<android.graphics.drawable.Drawable>(ivLogo) {
+                    @Override protected void setResource(android.graphics.drawable.Drawable resource) {
+                        ivLogo.setImageDrawable(resource);
+                        ivLogo.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                                .setDuration(500).setInterpolator(new OvershootInterpolator(1.5f)).start();
+                    }
+                });
 
         if (brandColor == 0) {
             Glide.with(this).asBitmap().load(url)
@@ -563,7 +652,9 @@ public class BillingActivity extends AppCompatActivity {
         String pu = na.optString("PrivacyPolicy", "");
         String tu = na.optString("TermsAndConditions", "");
         if (pu.isEmpty() && tu.isEmpty()) { layoutLinks.setVisibility(View.GONE); return; }
+        layoutLinks.setAlpha(0f);
         layoutLinks.setVisibility(View.VISIBLE);
+        layoutLinks.animate().alpha(1f).setDuration(400).setStartDelay(500).start();
         tvPrivacy.setVisibility(pu.isEmpty() ? View.GONE : View.VISIBLE);
         tvPrivacy.setText("Privacy Policy");
         tvTerms.setVisibility(tu.isEmpty() ? View.GONE : View.VISIBLE);
@@ -612,21 +703,90 @@ public class BillingActivity extends AppCompatActivity {
         layoutDisclaimersMiddle.setVisibility(View.GONE);
         layoutDisclaimersAfter.setVisibility(View.GONE);
         layoutLinks.setVisibility(View.GONE);
-        hideError();
+        tvError.setVisibility(View.GONE);
     }
 
+    private boolean firstLoad = true;
+
     private void showLoading(boolean show) {
-        layoutLoading.setVisibility(show ? View.VISIBLE : View.GONE);
-        if (!show) scrollView.setVisibility(View.VISIBLE);
+        if (show) {
+            if (firstLoad) {
+                // Already visible from XML on first launch — don't re-animate
+                layoutLoading.setVisibility(View.VISIBLE);
+                layoutLoading.setAlpha(1f);
+            } else {
+                layoutLoading.setAlpha(0f);
+                layoutLoading.setVisibility(View.VISIBLE);
+                layoutLoading.animate().alpha(1f).setDuration(200).start();
+            }
+        } else {
+            firstLoad = false;
+            layoutLoading.animate().alpha(0f).setDuration(300)
+                    .setListener(new AnimatorListenerAdapter() {
+                        @Override public void onAnimationEnd(Animator a) {
+                            layoutLoading.setVisibility(View.GONE);
+                            layoutLoading.animate().setListener(null);
+                            scrollView.setVisibility(View.VISIBLE);
+                            scrollView.setAlpha(0f);
+                            scrollView.animate().alpha(1f).setDuration(300).start();
+                        }
+                    }).start();
+        }
     }
 
     private void showError(String msg) {
         tvError.setText(msg);
-        tvError.setVisibility(View.VISIBLE);
-        if (cardInput.getVisibility() != View.VISIBLE) cardInput.setVisibility(View.VISIBLE);
+        if (tvError.getVisibility() != View.VISIBLE) {
+            tvError.setAlpha(0f);
+            tvError.setTranslationY(-10f);
+            tvError.setVisibility(View.VISIBLE);
+            tvError.animate().alpha(1f).translationY(0f).setDuration(300)
+                    .setInterpolator(new DecelerateInterpolator()).start();
+            // Shake the card for error feedback
+            ObjectAnimator shake = ObjectAnimator.ofFloat(cardInput, "translationX",
+                    0, 12, -12, 10, -10, 6, -6, 0);
+            shake.setDuration(500);
+            shake.start();
+        } else {
+            tvError.setText(msg);
+        }
+        if (cardInput.getVisibility() != View.VISIBLE) {
+            animateViewIn(cardInput);
+        }
     }
 
-    private void hideError() { tvError.setVisibility(View.GONE); }
+    private void hideError() {
+        if (tvError.getVisibility() == View.VISIBLE) {
+            tvError.animate().alpha(0f).translationY(-10f).setDuration(200)
+                    .setListener(new AnimatorListenerAdapter() {
+                        @Override public void onAnimationEnd(Animator a) {
+                            tvError.setVisibility(View.GONE);
+                            tvError.animate().setListener(null);
+                        }
+                    }).start();
+        }
+    }
+
+    /** Animate a view appearing with slide-up + fade */
+    private void animateViewIn(View v) {
+        v.setAlpha(0f);
+        v.setTranslationY(40f);
+        v.setVisibility(View.VISIBLE);
+        v.animate().alpha(1f).translationY(0f).setDuration(400)
+                .setInterpolator(new FastOutSlowInInterpolator()).start();
+    }
+
+    /** Animate a view disappearing with fade-out */
+    private void animateViewOut(View v) {
+        if (v.getVisibility() != View.VISIBLE) return;
+        v.animate().alpha(0f).setDuration(200)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(Animator a) {
+                        v.setVisibility(View.GONE);
+                        v.animate().setListener(null);
+                    }
+                }).start();
+    }
 
     private void openUrl(String url) {
         try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }

@@ -25,34 +25,20 @@
 
         <activity
             android:name=".BillingActivity"
-            android:exported="false"
+            android:exported="true"
             android:screenOrientation="portrait"
-            android:theme="@style/webTheme" />
-        <activity
-            android:name=".DashboardActivity"
-            android:theme="@style/webTheme"
-            android:screenOrientation="portrait">
+            android:theme="@style/webTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
         </activity>
 
         <activity
             android:name=".ActivityStartUp"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/webTheme"
-            android:screenOrientation="portrait">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <activity
-            android:name=".MainActivity" />
-        <activity
-            android:name=".CarDetailsActivity"
-            android:exported="false" />
-        <activity
-            android:name=".PlateDetailsActivity"
-            android:exported="false" />
+            android:screenOrientation="portrait" />
 
         <receiver
             android:name="com.adjust.sdk.AdjustReferrerReceiver"
