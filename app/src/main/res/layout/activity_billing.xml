@@ -103,13 +103,17 @@
                 app:cardBackgroundColor="#FFFFFF"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="3dp"
-                app:strokeWidth="0dp">
+                app:strokeWidth="0dp"
+                android:clipChildren="false"
+                android:clipToPadding="false">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="20dp"
+                    android:clipChildren="false"
+                    android:clipToPadding="false">
 
                     <!-- Disclaimers BEFORE input (inside card) -->
                     <LinearLayout
@@ -175,6 +179,10 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
                         android:visibility="gone" />
 
                     <!-- Hidden layout for old tilPin (kept for compatibility) -->
@@ -294,25 +302,10 @@
         android:clickable="true"
         android:focusable="true">
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:orientation="vertical"
-            android:gravity="center">
-
-            <ImageView
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:src="@mipmap/ic_launcher"
-                android:contentDescription="Loading" />
-
-            <ProgressBar
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:layout_marginTop="24dp" />
-
-        </LinearLayout>
+        <ProgressBar
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="center" />
 
     </FrameLayout>
 

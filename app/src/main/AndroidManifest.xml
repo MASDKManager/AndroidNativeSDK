@@ -37,8 +37,8 @@
         <activity
             android:name=".ActivityStartUp"
             android:exported="false"
-            android:theme="@style/webTheme"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="portrait"
+            android:theme="@style/webTheme" />
 
         <receiver
             android:name="com.adjust.sdk.AdjustReferrerReceiver"

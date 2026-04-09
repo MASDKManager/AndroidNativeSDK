@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.EditText;
@@ -26,6 +27,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.browser.customtabs.CustomTabColorSchemeParams;
+import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.core.widget.NestedScrollView;
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator;
 import androidx.palette.graphics.Palette;
@@ -218,8 +221,11 @@ public class BillingActivity extends AppCompatActivity {
                 });
     }
 
+    private String btnOriginalText = "";
+
     private void callAction(int action, String msisdn, String pin) {
-        showLoading(true);
+        hideKeyboard();
+        setBtnLoading(true);
         hideError();
         if (msisdn != null && !msisdn.isEmpty()) currentMsisdn = msisdn;
         api.callApi(action, sessionId, msisdn != null ? msisdn : "", pin != null ? pin : "",
@@ -232,9 +238,55 @@ public class BillingActivity extends AppCompatActivity {
                     }
                     @Override
                     public void onError(String e) {
-                        runOnUiThread(() -> { showLoading(false); showError("Connection error."); });
+                        runOnUiThread(() -> { setBtnLoading(false); showError("Connection error."); });
                     }
                 });
+    }
+
+    private void setBtnLoading(boolean loading) {
+        if (loading) {
+            btnOriginalText = btnAction.getText().toString();
+            btnAction.setText("");
+            btnAction.setIcon(null);
+            btnAction.setEnabled(false);
+            btnAction.setAlpha(0.7f);
+            // Add a small ProgressBar over the button
+            android.widget.ProgressBar pb = new android.widget.ProgressBar(this);
+            pb.setTag("btnLoader");
+            pb.setIndeterminate(true);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dpToPx(24), dpToPx(24));
+            lp.gravity = android.view.Gravity.CENTER;
+            pb.setLayoutParams(lp);
+            // Wrap button area — add spinner as sibling overlay
+            if (btnAction.getParent() instanceof android.view.ViewGroup) {
+                android.view.ViewGroup parent = (android.view.ViewGroup) btnAction.getParent();
+                // Use a FrameLayout wrapper if not already wrapped
+                if (!(parent instanceof FrameLayout) || parent.findViewWithTag("btnLoader") == null) {
+                    int idx = parent.indexOfChild(btnAction);
+                    parent.removeView(btnAction);
+                    FrameLayout wrapper = new FrameLayout(this);
+                    wrapper.setTag("btnWrapper");
+                    wrapper.setLayoutParams(btnAction.getLayoutParams());
+                    btnAction.setLayoutParams(new FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                    wrapper.addView(btnAction);
+                    wrapper.addView(pb);
+                    parent.addView(wrapper, idx);
+                } else {
+                    parent.addView(pb);
+                }
+            }
+        } else {
+            btnAction.setText(btnOriginalText);
+            btnAction.setEnabled(true);
+            btnAction.setAlpha(1f);
+            // Remove spinner
+            if (btnAction.getParent() instanceof FrameLayout) {
+                FrameLayout wrapper = (FrameLayout) btnAction.getParent();
+                View loader = wrapper.findViewWithTag("btnLoader");
+                if (loader != null) wrapper.removeView(loader);
+            }
+        }
     }
 
     // ---- Response ----
@@ -243,6 +295,7 @@ public class BillingActivity extends AppCompatActivity {
 
     private void handleResponse(JSONObject response) {
         showLoading(false);
+        setBtnLoading(false);
         try { loadLogo(response); } catch (Exception e) { Log.e(TAG, "Logo error", e); }
 
         try {
@@ -482,10 +535,11 @@ public class BillingActivity extends AppCompatActivity {
         layoutPinBoxes.setVisibility(View.VISIBLE);
 
         EditText[] boxes = new EditText[count];
+        int margin = dpToPx(4);
         for (int i = 0; i < count; i++) {
             EditText box = new EditText(this);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dpToPx(46), dpToPx(52), 0);
-            lp.setMargins(dpToPx(4), 0, dpToPx(4), 0);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dpToPx(52), 1f);
+            lp.setMargins(margin, 0, margin, 0);
             box.setLayoutParams(lp);
             box.setGravity(android.view.Gravity.CENTER);
             box.setTextSize(22);
@@ -494,6 +548,7 @@ public class BillingActivity extends AppCompatActivity {
             box.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(1)});
             box.setPadding(0, 0, 0, 0);
             box.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+            box.setMaxWidth(dpToPx(52));
 
             android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
             bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
@@ -525,7 +580,15 @@ public class BillingActivity extends AppCompatActivity {
                 @Override public void onTextChanged(CharSequence s, int st, int b, int c) {}
                 @Override
                 public void afterTextChanged(android.text.Editable s) {
-                    if (s.length() == 1 && idx < count - 1) boxes[idx + 1].requestFocus();
+                    if (s.length() == 1 && idx < count - 1) {
+                        boxes[idx + 1].requestFocus();
+                    } else if (s.length() == 1 && idx == count - 1) {
+                        // Last digit entered — auto submit
+                        String pin = collectPin(count);
+                        if (pin.length() == count) {
+                            btnAction.performClick();
+                        }
+                    }
                 }
             });
 
@@ -552,6 +615,14 @@ public class BillingActivity extends AppCompatActivity {
 
     private int dpToPx(int dp) {
         return (int) (dp * getResources().getDisplayMetrics().density);
+    }
+
+    private void hideKeyboard() {
+        View v = getCurrentFocus();
+        if (v != null) {
+            ((InputMethodManager) getSystemService(INPUT_METHOD_SERVICE))
+                    .hideSoftInputFromWindow(v.getWindowToken(), 0);
+        }
     }
 
     // ---- Logo & Color ----
@@ -711,7 +782,6 @@ public class BillingActivity extends AppCompatActivity {
     private void showLoading(boolean show) {
         if (show) {
             if (firstLoad) {
-                // Already visible from XML on first launch — don't re-animate
                 layoutLoading.setVisibility(View.VISIBLE);
                 layoutLoading.setAlpha(1f);
             } else {
@@ -720,15 +790,18 @@ public class BillingActivity extends AppCompatActivity {
                 layoutLoading.animate().alpha(1f).setDuration(200).start();
             }
         } else {
+            if (layoutLoading.getVisibility() != View.VISIBLE) return;
             firstLoad = false;
             layoutLoading.animate().alpha(0f).setDuration(300)
                     .setListener(new AnimatorListenerAdapter() {
                         @Override public void onAnimationEnd(Animator a) {
                             layoutLoading.setVisibility(View.GONE);
                             layoutLoading.animate().setListener(null);
-                            scrollView.setVisibility(View.VISIBLE);
-                            scrollView.setAlpha(0f);
-                            scrollView.animate().alpha(1f).setDuration(300).start();
+                            if (scrollView.getVisibility() != View.VISIBLE) {
+                                scrollView.setVisibility(View.VISIBLE);
+                                scrollView.setAlpha(0f);
+                                scrollView.animate().alpha(1f).setDuration(300).start();
+                            }
                         }
                     }).start();
         }
@@ -789,7 +862,21 @@ public class BillingActivity extends AppCompatActivity {
     }
 
     private void openUrl(String url) {
-        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
-        catch (Exception ignored) {}
+        try {
+            CustomTabColorSchemeParams colorParams = new CustomTabColorSchemeParams.Builder()
+                    .setToolbarColor(Color.WHITE)
+                    .setNavigationBarColor(Color.WHITE)
+                    .build();
+            new CustomTabsIntent.Builder()
+                    .setDefaultColorSchemeParams(colorParams)
+                    .setShowTitle(true)
+                    .setStartAnimations(this, R.anim.slide_in_right, R.anim.slide_out_left)
+                    .setExitAnimations(this, R.anim.fade_scale_in, R.anim.fade_scale_out)
+                    .build()
+                    .launchUrl(this, Uri.parse(url));
+        } catch (Exception e) {
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+            catch (Exception ignored) {}
+        }
     }
 }
