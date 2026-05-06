@@ -1,4 +1,4 @@
-package com.opn.nativeflow;
+package com.mynative.sdkdemo;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -47,7 +47,6 @@ import java.util.Set;
 public class BillingActivity extends AppCompatActivity {
 
     private static final String TAG = "BillingActivity";
-
     private static final Set<String> BEFORE_KEYS = new HashSet<>(Arrays.asList(
             "headerInfo", "prelanderInfo", "prelanderTxt", "OTPTopHeaderInfo"
     ));
@@ -58,9 +57,11 @@ public class BillingActivity extends AppCompatActivity {
     private MobiBoxApi api;
     private String sessionId = "";
     private String currentMsisdn = "";
-    private String resolvedIp = "";
     private String countryDialCode = "";
     private int brandColor = 0;
+    private String gpsAdid = "";
+    private String deviceId = "";
+    private String deeplink = "";
 
     private NestedScrollView scrollView;
     private FrameLayout layoutLoading;
@@ -89,11 +90,23 @@ public class BillingActivity extends AppCompatActivity {
         setContentView(R.layout.activity_billing);
         api = new MobiBoxApi();
         initViews();
-        // Resolve public IP first, then initiate
-        api.resolvePublicIp(ip -> {
-            resolvedIp = ip;
+        fetchDeviceIds();
+    }
+
+    private void fetchDeviceIds() {
+        deviceId = MobiBoxApi.getOrCreateDeviceId(this);
+
+        new Thread(() -> {
+            // Fetch Google Advertising ID
+            try {
+                com.google.android.gms.ads.identifier.AdvertisingIdClient.Info adInfo =
+                        com.google.android.gms.ads.identifier.AdvertisingIdClient.getAdvertisingIdInfo(this);
+                if (adInfo != null) gpsAdid = adInfo.getId() != null ? adInfo.getId() : "";
+            } catch (Exception e) {
+                Log.e(TAG, "GAID error: " + e.getMessage());
+            }
             runOnUiThread(this::callInitiate);
-        });
+        }).start();
     }
 
     private void initViews() {
@@ -111,9 +124,13 @@ public class BillingActivity extends AppCompatActivity {
         til.pin = findViewById(R.id.tilPin);
         til.countryCode = findViewById(R.id.tilCountryCode);
         etMsisdn = findViewById(R.id.etMsisdn);
+        etMsisdn.setTextColor(getColor(R.color.text_primary));
         etPin = findViewById(R.id.etPin);
+        etPin.setTextColor(getColor(R.color.text_primary));
         etCountryCode = findViewById(R.id.etCountryCode);
+        etCountryCode.setTextColor(getColor(R.color.text_primary));
         tvError = findViewById(R.id.tvError);
+        tvError.setTextColor(getColor(R.color.error));
         btnAction = findViewById(R.id.btnAction);
         layoutLinks = findViewById(R.id.layoutLinks);
         tvPrivacy = findViewById(R.id.tvPrivacy);
@@ -195,19 +212,9 @@ public class BillingActivity extends AppCompatActivity {
 
     private String ua() { return WebSettings.getDefaultUserAgent(this); }
 
-    private String firstBtnId() {
-        String id = api.getFirstPageButtonID();
-        return !id.isEmpty() ? id : "btnAction";
-    }
-
-    private String secondBtnId() {
-        String id = api.getSecondPageButtonID();
-        return !id.isEmpty() ? id : "btnAction";
-    }
-
     private void callInitiate() {
         showLoading(true);
-        api.callApi(1, "", "", "", ua(), resolvedIp, "btnAction", "btnAction",
+        api.callApi(1, "", "", "", ua(), getPackageName(), deviceId, gpsAdid, deeplink,
                 new MobiBoxApi.ApiCallback() {
                     @Override
                     public void onSuccess(JSONObject r) {
@@ -229,7 +236,7 @@ public class BillingActivity extends AppCompatActivity {
         hideError();
         if (msisdn != null && !msisdn.isEmpty()) currentMsisdn = msisdn;
         api.callApi(action, sessionId, msisdn != null ? msisdn : "", pin != null ? pin : "",
-                ua(), resolvedIp, firstBtnId(), secondBtnId(),
+                ua(), getPackageName(), deviceId, gpsAdid, deeplink,
                 new MobiBoxApi.ApiCallback() {
                     @Override
                     public void onSuccess(JSONObject r) {
@@ -308,11 +315,23 @@ public class BillingActivity extends AppCompatActivity {
             String aqsp = response.optString("additionalQueryStringParams", "");
             if (!aqsp.isEmpty()) additionalQueryStringParams = aqsp;
 
-            // Update country dial code dynamically
-            String dial = api.getCountryDialCode();
-            if (!dial.isEmpty() && !dial.equals(countryDialCode)) {
-                countryDialCode = dial;
-                etCountryCode.setText("+" + countryDialCode);
+            // Update country dial code from NextAction.Info.GeneralSettings.Country.Code
+            JSONObject na = response.optJSONObject("NextAction");
+            if (na != null) {
+                JSONObject info = na.optJSONObject("Info");
+                if (info != null) {
+                    JSONObject gs = info.optJSONObject("GeneralSettings");
+                    if (gs != null) {
+                        JSONObject country = gs.optJSONObject("Country");
+                        if (country != null) {
+                            String code = country.optString("Code", "");
+                            if (!code.isEmpty() && !code.equals(countryDialCode)) {
+                                countryDialCode = code;
+                                etCountryCode.setText("+" + countryDialCode);
+                            }
+                        }
+                    }
+                }
             }
 
             JSONObject payout = response.optJSONObject("Payout");
@@ -327,7 +346,12 @@ public class BillingActivity extends AppCompatActivity {
                 return;
             }
 
-            JSONObject na = response.optJSONObject("NextAction");
+            if (error != 0 && error != 2) {
+                String errMsg = !msg.isEmpty() ? msg : (!description.isEmpty() ? description : "Service not available");
+                showError(errMsg);
+                return;
+            }
+
             if (na == null) {
                 Log.e(TAG, "Full response (no NextAction): " + response.toString());
                 // Try case-insensitive search for NextAction
@@ -350,20 +374,31 @@ public class BillingActivity extends AppCompatActivity {
 
     private void processNextAction(int actionId, JSONObject na) {
         hideAllSections();
-        showAllDisclaimers(na);
-        showLinks(na);
+
+        // Extract Info and Theme from new response structure
+        JSONObject info = na.optJSONObject("Info");
+        JSONObject theme = info != null ? info.optJSONObject("Theme") : null;
+        String btnText = theme != null && theme.optJSONObject("Button") != null
+                ? theme.optJSONObject("Button").optString("Text", "") : "";
+        String inputHint = theme != null && theme.optJSONObject("TextBox") != null
+                ? theme.optJSONObject("TextBox").optString("Text", "") : "";
+
+        // Disclaimers are now under Info.Disclaimers
+        showAllDisclaimers(info);
+        showLinks(theme);
         loadAFScript(na);
 
         switch (actionId) {
             case 2: // SendPin — show MSISDN entry
                 animateViewIn(cardInput);
                 layoutMsisdnRow.setVisibility(View.VISIBLE);
+                if (!inputHint.isEmpty()) etMsisdn.setHint(inputHint);
                 // Stagger MSISDN row
                 layoutMsisdnRow.setAlpha(0f);
                 layoutMsisdnRow.setTranslationX(-30f);
                 layoutMsisdnRow.animate().alpha(1f).translationX(0f).setDuration(400)
                         .setStartDelay(150).setInterpolator(new FastOutSlowInInterpolator()).start();
-                btnAction.setText("Subscribe");
+                btnAction.setText(!btnText.isEmpty() ? btnText : "Subscribe");
                 animateButtonEntrance();
                 btnAction.setOnClickListener(v -> {
                     animateButtonPress(v);
@@ -375,7 +410,18 @@ public class BillingActivity extends AppCompatActivity {
                 break;
             case 3: // VerifyPin
                 animateViewIn(cardInput);
-                int pinLen = na.optInt("PincodeLength", 4);
+                int pinLen = 4;
+                if (info != null && theme != null) {
+                    JSONObject textBox = theme.optJSONObject("TextBox");
+                    if (textBox != null) {
+                        org.json.JSONArray pinLenArr = textBox.optJSONArray("PinLength");
+                        if (pinLenArr != null && pinLenArr.length() > 0) {
+                            pinLen = pinLenArr.optInt(0, 4);
+                        } else {
+                            pinLen = textBox.optInt("Length", 4);
+                        }
+                    }
+                }
                 if (pinLen <= 0) pinLen = 4;
                 buildPinBoxes(pinLen);
                 animatePinBoxesEntrance();
@@ -462,7 +508,6 @@ public class BillingActivity extends AppCompatActivity {
     }
 
     // ---- AFScript: attach to layout so it actually runs ----
-
     private void loadAFScript(JSONObject na) {
         afScriptContainer.removeAllViews();
         String af = na.optString("AFScript", "");
@@ -476,12 +521,13 @@ public class BillingActivity extends AppCompatActivity {
 
     // ---- Disclaimers ----
 
-    private void showAllDisclaimers(JSONObject na) {
+    private void showAllDisclaimers(JSONObject info) {
         layoutDisclaimersBefore.removeAllViews();
         layoutDisclaimersMiddle.removeAllViews();
         layoutDisclaimersAfter.removeAllViews();
 
-        JSONObject disclaimers = na.optJSONObject("Disclaimers");
+        if (info == null) return;
+        JSONObject disclaimers = info.optJSONObject("Disclaimers");
         if (disclaimers == null) return;
 
         boolean hasBefore = false, hasMiddle = false, hasAfter = false;
@@ -496,9 +542,11 @@ public class BillingActivity extends AppCompatActivity {
             String decoded;
             try { decoded = URLDecoder.decode(val, "UTF-8"); }
             catch (Exception e) { decoded = val; }
+            Log.d(TAG, "Disclaimer [" + key + "] HTML: " + decoded);
 
             TextView tv = new TextView(this);
             tv.setText(Html.fromHtml(decoded, Html.FROM_HTML_MODE_COMPACT));
+            tv.setTextColor(getColor(R.color.text_secondary));
             tv.setTextSize(13);
             tv.setLineSpacing(0, 1.4f);
             tv.setPadding(0, 8, 0, 8);
@@ -630,7 +678,17 @@ public class BillingActivity extends AppCompatActivity {
         String url = findImageUrl(response);
         if (url == null) {
             JSONObject na = response.optJSONObject("NextAction");
-            if (na != null) url = findImageUrl(na);
+            if (na != null) {
+                url = findImageUrl(na);
+                // Check Service.HeaderPic in new response structure
+                if (url == null) {
+                    JSONObject service = na.optJSONObject("Service");
+                    if (service != null) {
+                        String hp = service.optString("HeaderPic", "");
+                        if (!hp.isEmpty() && hp.startsWith("http")) url = hp;
+                    }
+                }
+            }
         }
         if (url == null || url.isEmpty()) {
             if (brandColor != 0) reapplyBrandColor();
@@ -718,21 +776,44 @@ public class BillingActivity extends AppCompatActivity {
     }
 
     // ---- Links ----
-
-    private void showLinks(JSONObject na) {
-        String pu = na.optString("PrivacyPolicy", "");
-        String tu = na.optString("TermsAndConditions", "");
-        if (pu.isEmpty() && tu.isEmpty()) { layoutLinks.setVisibility(View.GONE); return; }
+    private void showLinks(JSONObject theme) {
+        if (theme == null) { layoutLinks.setVisibility(View.GONE); return; }
+        JSONObject tcObj = theme.optJSONObject("TermsAndConditions");
+        JSONObject ppObj = theme.optJSONObject("PrivacyPolicy");
+        String tcText = tcObj != null ? tcObj.optString("Text", "") : "";
+        String tcContent = tcObj != null ? tcObj.optString("Content", "") : "";
+        String ppText = ppObj != null ? ppObj.optString("Text", "") : "";
+        String ppContent = ppObj != null ? ppObj.optString("Content", "") : "";
+        boolean hasPp = !ppText.isEmpty() && !ppContent.isEmpty();
+        boolean hasTc = !tcText.isEmpty() && !tcContent.isEmpty();
+        if (!hasPp && !hasTc) { layoutLinks.setVisibility(View.GONE); return; }
         layoutLinks.setAlpha(0f);
         layoutLinks.setVisibility(View.VISIBLE);
         layoutLinks.animate().alpha(1f).setDuration(400).setStartDelay(500).start();
-        tvPrivacy.setVisibility(pu.isEmpty() ? View.GONE : View.VISIBLE);
-        tvPrivacy.setText("Privacy Policy");
-        tvTerms.setVisibility(tu.isEmpty() ? View.GONE : View.VISIBLE);
-        tvTerms.setText("Terms & Conditions");
-        tvLinkDivider.setVisibility((!pu.isEmpty() && !tu.isEmpty()) ? View.VISIBLE : View.GONE);
-        tvPrivacy.setOnClickListener(v -> openUrl(pu));
-        tvTerms.setOnClickListener(v -> openUrl(tu));
+        tvPrivacy.setVisibility(hasPp ? View.VISIBLE : View.GONE);
+        tvPrivacy.setText(ppText);
+        tvTerms.setVisibility(hasTc ? View.VISIBLE : View.GONE);
+        tvTerms.setText(tcText);
+        tvLinkDivider.setVisibility((hasPp && hasTc) ? View.VISIBLE : View.GONE);
+        // Load HTML content in Custom Tab as data URI
+        tvPrivacy.setOnClickListener(v -> openHtmlContent(ppText, ppContent));
+        tvTerms.setOnClickListener(v -> openHtmlContent(tcText, tcContent));
+    }
+
+    private void openHtmlContent(String title, String htmlContent) {
+        // If content looks like a URL, open it directly; otherwise show HTML in a WebView dialog
+        if (htmlContent.startsWith("http")) {
+            openUrl(htmlContent);
+        } else {
+            android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                    .setTitle(title)
+                    .setPositiveButton("Close", null)
+                    .create();
+            WebView wv = new WebView(this);
+            wv.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null);
+            dialog.setView(wv);
+            dialog.show();
+        }
     }
 
     // ---- Helpers ----

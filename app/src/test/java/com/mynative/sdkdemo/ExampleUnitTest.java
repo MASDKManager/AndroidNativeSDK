@@ -1,4 +1,4 @@
-package com.opn.nativeflow;
+package com.mynative.sdkdemo;
 
 import org.junit.Test;
 

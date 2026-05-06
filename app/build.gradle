@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.opn.nativeflow'
+    namespace 'com.mynative.sdkdemo'
     compileSdk 36  // make sure to use compileSdk 35 or higher
 
     defaultConfig {
-        applicationId "com.opn.nativeflow"
+        applicationId "com.mynative.sdkdemo"
         minSdk 24
         targetSdk 36 // make sure to use targetSdk 35 or higher
         versionCode 1

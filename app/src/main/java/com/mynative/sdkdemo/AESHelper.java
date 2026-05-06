@@ -1,4 +1,4 @@
-package com.opn.nativeflow;
+package com.mynative.sdkdemo;
 
 import android.util.Base64;
 import javax.crypto.Cipher;

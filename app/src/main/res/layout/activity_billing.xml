@@ -32,7 +32,7 @@
                 android:clipToPadding="false">
 
                 <!-- Dynamic pattern background -->
-                <com.opn.nativeflow.HeaderPatternView
+                <com.mynative.sdkdemo.HeaderPatternView
                     android:id="@+id/headerPattern"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent" />
